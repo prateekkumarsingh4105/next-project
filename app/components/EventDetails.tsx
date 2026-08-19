@@ -1,61 +1,89 @@
-import { Suspense } from "react";
-import BookEvent from "@/app/components/BookEvent";
-import EventCard from "@/app/components/EventCard";
-import { getSimilarEventsBySlug } from "@/lib/actions/event.action";
-import Image from "next/image";
-import { notFound } from "next/navigation";
-import connectDB from "@/lib/mongodb";
-import Event from "@/database/event.model";
-import { cacheLife } from "next/cache";
+import React from 'react'
+import { notFound } from 'next/navigation'
+import { IEvent } from '@/database'
+import Image from 'next/image'
+import BookEvent from '@/app/components/BookEvent'
+import EventCard from '@/app/components/EventCard'
+import { cacheLife } from 'next/cache'
 
-// Tells Next.js which slugs to pre-render at build time
-export async function generateStaticParams() {
-  await connectDB();
-  const events = await Event.find({}, "slug").lean();
-  return events.map((event: any) => ({
-    slug: event.slug,
-  }));
-}
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL
 
-const EventDetailItem = ({ icon, alt, label }: { icon: string; alt: string; label: string }) => (
-  <div className="flex flex-row items-center gap-2">
+const EventDetailItem = ({
+  icon,
+  alt,
+  label,
+}: {
+  icon: string
+  alt: string
+  label: string
+}) => (
+  <div className="flex-row-gap-2 items-center">
     <Image src={icon} alt={alt} width={17} height={17} />
     <p>{label}</p>
   </div>
-);
+)
 
 const EventAgenda = ({ agendaItems }: { agendaItems: string[] }) => (
   <div className="agenda">
     <h2>Agenda</h2>
     <ul>
-      {agendaItems?.map((item) => (
+      {agendaItems.map((item) => (
         <li key={item}>{item}</li>
       ))}
     </ul>
   </div>
-);
+)
 
 const EventTags = ({ tags }: { tags: string[] }) => (
   <div className="flex flex-row gap-1.5 flex-wrap">
-    {tags?.map((tag) => (
+    {tags.map((tag) => (
       <div className="pill" key={tag}>
         {tag}
       </div>
     ))}
   </div>
-);
+)
 
-async function EventDetailsContent({ slug }: { slug: string }) {
-  "use cache";
-  cacheLife("hours");
+async function getEvent(slug: string) {
+  'use cache'
 
-  await connectDB();
-  const rawEvent = await Event.findOne({ slug }).lean();
+  cacheLife('hours')
 
-  if (!rawEvent) return notFound();
+  if (!BASE_URL) {
+    throw new Error('NEXT_PUBLIC_BASE_URL is not defined')
+  }
+
+  const request = await fetch(`${BASE_URL}/api/events/${slug}`)
+
+  if (!request.ok) {
+    if (request.status === 404) {
+      return null
+    }
+
+    throw new Error(
+      `Failed to fetch event: ${request.status} ${request.statusText}`
+    )
+  }
+
+  const response = await request.json()
+
+  return response.event ?? null
+}
+
+const EventDetails = async ({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}) => {
+  const { slug } = await params
+
+  const event = await getEvent(slug)
+
+  if (!event || !event.description) {
+    notFound()
+  }
 
   const {
-    _id,
     description,
     image,
     overview,
@@ -67,38 +95,11 @@ async function EventDetailsContent({ slug }: { slug: string }) {
     audience,
     tags,
     organizer,
-  } = JSON.parse(JSON.stringify(rawEvent));
+  } = event
 
-  if (!description) return notFound();
+  const bookings = 10
 
-  const parseArrayField = (field: any): string[] => {
-    if (!field) return [];
-    if (Array.isArray(field)) {
-      if (typeof field[0] === "string" && field[0].trim().startsWith("[")) {
-        try {
-          return JSON.parse(field[0]);
-        } catch {
-          return field;
-        }
-      }
-      return field;
-    }
-    if (typeof field === "string") {
-      try {
-        return JSON.parse(field);
-      } catch {
-        return [field];
-      }
-    }
-    return [];
-  };
-
-  const parsedAgenda = parseArrayField(agenda);
-  const parsedTags = parseArrayField(tags);
-  const bookings = 10;
-
-  const rawSimilarEvents = await getSimilarEventsBySlug(slug);
-  const similarEvents = JSON.parse(JSON.stringify(rawSimilarEvents));
+  const similarEvents: IEvent[] = event.similarEvents ?? []
 
   return (
     <section id="event">
@@ -109,69 +110,99 @@ async function EventDetailsContent({ slug }: { slug: string }) {
 
       <div className="details">
         <div className="content">
-          <Image className="banner" src={image} alt="Event Banner" width={800} height={800} />
+          <Image
+            src={image}
+            alt="Event Banner"
+            width={800}
+            height={800}
+            className="banner"
+          />
 
-          <section className="flex flex-col gap-2">
+          <section className="flex-col-gap-2">
             <h2>Overview</h2>
             <p>{overview}</p>
           </section>
 
-          <section className="flex flex-col gap-2">
-            <h2>Event details</h2>
-            <EventDetailItem icon="/icons/calendar.svg" alt="calendar" label={date} />
-            <EventDetailItem icon="/icons/clock.svg" alt="clock" label={time} />
-            <EventDetailItem icon="/icons/pin.svg" alt="location" label={location} />
-            <EventDetailItem icon="/icons/mode.svg" alt="mode" label={mode} />
-            <EventDetailItem icon="/icons/audience.svg" alt="audience" label={audience} />
+          <section className="flex-col-gap-2">
+            <h2>Event Details</h2>
+
+            <EventDetailItem
+              icon="/icons/calendar.svg"
+              alt="calendar"
+              label={date}
+            />
+
+            <EventDetailItem
+              icon="/icons/clock.svg"
+              alt="clock"
+              label={time}
+            />
+
+            <EventDetailItem
+              icon="/icons/pin.svg"
+              alt="pin"
+              label={location}
+            />
+
+            <EventDetailItem
+              icon="/icons/mode.svg"
+              alt="mode"
+              label={mode}
+            />
+
+            <EventDetailItem
+              icon="/icons/audience.svg"
+              alt="audience"
+              label={audience}
+            />
           </section>
 
-          <EventAgenda agendaItems={parsedAgenda} />
+          <EventAgenda agendaItems={agenda} />
 
-          <section className="flex flex-col gap-2">
-            <h2>About the organizer</h2>
+          <section className="flex-col-gap-2">
+            <h2>About the Organizer</h2>
             <p>{organizer}</p>
           </section>
 
-          <EventTags tags={parsedTags} />
+          <EventTags tags={tags} />
         </div>
 
         <aside className="booking">
           <div className="signup-card">
             <h2>Book Your Spot</h2>
+
             {bookings > 0 ? (
-              <p className="text-sm">Join {bookings} people who have already booked their spot!</p>
+              <p className="text-sm">
+                Join {bookings} people who have already booked their spot!
+              </p>
             ) : (
-              <p className="text-sm">Be the first to book your slot!</p>
+              <p className="text-sm">
+                Be the first to book your spot!
+              </p>
             )}
 
-            <BookEvent eventID={_id} slug={slug} />
+            <BookEvent
+              eventID={event._id}
+              slug={event.slug}
+            />
           </div>
         </aside>
       </div>
 
       <div className="flex w-full flex-col gap-4 pt-20">
         <h2>Similar Events</h2>
+
         <div className="events">
-          {similarEvents?.length > 0 &&
-            similarEvents.map((similarEvent: any) => (
-              <EventCard key={similarEvent._id || similarEvent.slug} {...similarEvent} />
-            ))}
+          {similarEvents.map((similarEvent: IEvent) => (
+            <EventCard
+              key={similarEvent.title}
+              {...similarEvent}
+            />
+          ))}
         </div>
       </div>
     </section>
-  );
+  )
 }
 
-export default async function EvenntDetailsPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = await params;
-
-  return (
-    <Suspense fallback={<p className="text-center py-10">Loading event details...</p>}>
-      <EventDetailsContent slug={slug} />
-    </Suspense>
-  );
-}
+export default EventDetails
