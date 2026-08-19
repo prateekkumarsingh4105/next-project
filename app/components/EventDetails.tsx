@@ -1,86 +1,84 @@
-import React from 'react'
-import { notFound } from 'next/navigation'
-import { IEvent } from '@/database'
-import Image from 'next/image'
-import BookEvent from '@/app/components/BookEvent'
-import EventCard from '@/app/components/EventCard'
-import { cacheLife } from 'next/cache'
+import { notFound } from "next/navigation";
+import { IEvent } from "@/database";
+import Image from "next/image";
+import BookEvent from "@/app/components/BookEvent";
+import EventCard from "@/app/components/EventCard";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 
 const EventDetailItem = ({
   icon,
   alt,
   label,
 }: {
-  icon: string
-  alt: string
-  label: string
+  icon: string;
+  alt: string;
+  label: string;
 }) => (
-  <div className="flex-row-gap-2 items-center">
-    <Image src={icon} alt={alt} width={17} height={17} />
-    <p>{label}</p>
+  <div className="flex items-center gap-2">
+    <Image src={icon} alt={alt} width={20} height={20} />
+    <span>{label}</span>
   </div>
-)
+);
 
 const EventAgenda = ({ agendaItems }: { agendaItems: string[] }) => (
-  <div className="agenda">
+  <section className="flex-col-gap-2">
     <h2>Agenda</h2>
     <ul>
-      {agendaItems.map((item) => (
-        <li key={item}>{item}</li>
+      {agendaItems?.map((item, index) => (
+        <li key={`${item}-${index}`}>{item}</li>
       ))}
     </ul>
-  </div>
-)
+  </section>
+);
 
 const EventTags = ({ tags }: { tags: string[] }) => (
-  <div className="flex flex-row gap-1.5 flex-wrap">
-    {tags.map((tag) => (
-      <div className="pill" key={tag}>
+  <section className="flex flex-wrap gap-2">
+    {tags?.map((tag) => (
+      <span key={tag} className="rounded-full border px-3 py-1 text-sm">
         {tag}
-      </div>
+      </span>
     ))}
-  </div>
-)
-
-async function getEvent(slug: string) {
-  'use cache'
-
-  cacheLife('hours')
-
-  if (!BASE_URL) {
-    throw new Error('NEXT_PUBLIC_BASE_URL is not defined')
-  }
-
-  const request = await fetch(`${BASE_URL}/api/events/${slug}`)
-
-  if (!request.ok) {
-    if (request.status === 404) {
-      return null
-    }
-
-    throw new Error(
-      `Failed to fetch event: ${request.status} ${request.statusText}`
-    )
-  }
-
-  const response = await request.json()
-
-  return response.event ?? null
-}
+  </section>
+);
 
 const EventDetails = async ({
   params,
 }: {
-  params: Promise<{ slug: string }>
+  params: Promise<{ slug: string }>;
 }) => {
-  const { slug } = await params
+  const { slug } = await params;
 
-  const event = await getEvent(slug)
+  if (!BASE_URL) {
+    throw new Error("NEXT_PUBLIC_BASE_URL is not defined");
+  }
 
-  if (!event || !event.description) {
-    notFound()
+  let event;
+
+  try {
+    const request = await fetch(`${BASE_URL}/api/events/${slug}`, {
+      cache: "no-store",
+    });
+
+    if (!request.ok) {
+      if (request.status === 404) {
+        notFound();
+      }
+
+      throw new Error(
+        `Failed to fetch event: ${request.status} ${request.statusText}`
+      );
+    }
+
+    const response = await request.json();
+    event = response.event;
+
+    if (!event) {
+      notFound();
+    }
+  } catch (error) {
+    console.error("Error fetching event:", error);
+    notFound();
   }
 
   const {
@@ -95,11 +93,15 @@ const EventDetails = async ({
     audience,
     tags,
     organizer,
-  } = event
+  } = event;
 
-  const bookings = 10
+  if (!description) {
+    notFound();
+  }
 
-  const similarEvents: IEvent[] = event.similarEvents ?? []
+  const bookings = 10;
+
+  const similarEvents: IEvent[] = event.similarEvents ?? [];
 
   return (
     <section id="event">
@@ -202,7 +204,7 @@ const EventDetails = async ({
         </div>
       </div>
     </section>
-  )
-}
+  );
+};
 
-export default EventDetails
+export default EventDetails;
