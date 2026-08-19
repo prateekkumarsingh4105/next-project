@@ -6,6 +6,8 @@ import { notFound } from "next/navigation";
 import connectDB from "@/lib/mongodb";
 import Event from "@/database/event.model";
 
+export const dynamic = "force-dynamic";
+
 const EvenntDetailsPage = async ({
   params,
 }: {
