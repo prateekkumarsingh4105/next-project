@@ -7,8 +7,8 @@ import connectDB from '@/lib/mongodb'
 
 
 const page = async () => {
-  "use cache";
-  cacheLife('hours')
+  // "use cache";
+  // cacheLife('hours')
   await connectDB();
   const rawEvents = await Event.find().sort({ createdAt: -1 }).lean();
   const events = JSON.parse(JSON.stringify(rawEvents));
