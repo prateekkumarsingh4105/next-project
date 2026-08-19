@@ -1,6 +1,6 @@
 import {notFound} from "next/navigation";
 import {IEvent} from "@/database";
-import {getSimilarEventsBySlug} from "@/lib/actions";
+import {getSimilarEventsBySlug} from "@/app/lib/actions";
 import Image from "next/image";
 import BookEvent from "@/components/event/BookEvent";
 import EventCard from "@/components/event/EventCard";
